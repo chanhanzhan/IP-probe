@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "main.ts",
   "scripts": {
-    "start": "ts-node main.ts"
+    "start": "node --loader main.ts"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

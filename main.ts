@@ -4,12 +4,15 @@ import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import fs from 'fs';
 import { CONFIG, loadConfig, saveConfig } from './config.ts';
+// import type { AppConfig } from './config.ts'; // 如需类型可解开
 import { initDB, createTask, stopTask, getTask, getActiveTask, addIpRecord, getUniqueIpRecords, getAllTasks, getUniqueIpCount, createApiKey, updateApiKeyBalance, deleteApiKey, getApiKey, listApiKeys, consumeApiKey, cleanZeroIpTasks, getTaskLastUpdateTime, getIpRecordsLastUpdateTime, vacuumAndAnalyze, getTasksByKey, updateTaskKey } from './db/sqlite.ts';
 import { getClientIp, getIpInfo } from './utils/ip.ts';
 import { genTaskId } from './utils/task.ts';
 import { logger } from './utils/logger.ts';
 import cookieParser from 'cookie-parser';
 import sqlite3 from 'sqlite3';
+import * as schedule from 'node-schedule';
+import { rateLimit } from 'express-rate-limit';
 const { Database } = sqlite3;
 
 const __filename = fileURLToPath(import.meta.url);
@@ -30,6 +33,29 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cookieParser());
+app.use((req, res, next) => {
+  const startTime = Date.now();
+  const { method, originalUrl } = req;
+  const ip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  let body = '';
+  if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+    body = JSON.stringify(req.body);
+  }
+  res.on('finish', () => {
+    const duration = Date.now() - startTime;
+    logger.info('请求日志', {
+      ip,
+      url: originalUrl,
+      ua,
+      method,
+      body,
+      status: res.statusCode,
+      duration
+    });
+  });
+  next();
+});
 function isBypassRateLimit(req) {
   // query
   if (req.query && (req.query.key || req.query.token)) return true;
@@ -39,14 +65,13 @@ function isBypassRateLimit(req) {
   if (req.body && (req.body.key || req.body.token)) return true;
   return false;
 }
-
 // 全局请求统计与限速
 const requestStats = {
   total: 0,
   perPath: new Map(), // path => count
   perIp: new Map(),   // ip => [{timestamp, path}]
   banIp: new Map(),   // ip => banUntil timestamp
-  rate429Map: new Map() 
+  rate429Map: new Map() // 统计每个IP的429次数
 };
 
 // 定时清理统计窗口外的请求记录
@@ -62,9 +87,8 @@ setInterval(() => {
   }
 }, RATE_LIMIT_CONFIG.CLEAN_INTERVAL_MS);
 
-// 新限速中间件
+// 限速中间件
 function statAndRateLimitV2(req, res, next) {
-  // 静态资源和图片API跳过
   if (req.path.startsWith('/webui') || req.path.startsWith('/api/page/')) return next();
   const token = req.cookies?.webui_token || req.headers['x-token'] || req.query.token || req.body?.token;
   if (token === config.ADMIN_TOKEN) return next();
@@ -108,15 +132,12 @@ function statAndRateLimitV2(req, res, next) {
   }
   next();
 }
-
 app.use(statAndRateLimitV2);
-
 app.get('/', (req, res) => {
   logger.warn('非法访问根目录', { ip: getClientIp(req) });
-  res.status(520).send('非法访问');
+  res.status(500).send('非法访问');
 });
 app.use(express.static(__dirname));
-
 const ipRecordQueue: any[] = [];
 function queueIpRecord(task_id: string, ip: string, info: string) {
   ipRecordQueue.push({ task_id, ip, info, created_at: Date.now() });
@@ -128,18 +149,41 @@ setInterval(async () => {
     try {
       await addIpRecord(rec.task_id, rec.ip, rec.info, rec.created_at);
     } catch (e) {
-      
+      queueDbRetry(addIpRecord, [rec.task_id, rec.ip, rec.info, rec.created_at]);
+      logger.warn('addIpRecord失败，已加入重试队列', { task_id: rec.task_id, ip: rec.ip, error: e });
     }
   }
 }, 5000);
 
-async function getTaskDirect(taskId: string) {
-  return await getTask(taskId);
-}
-async function getIpRecordsDirect(taskId: string) {
-  return await getUniqueIpRecords(taskId);
+async function asyncWithRetry<T>(fn: (...args: any[]) => Promise<T>, args: any[], maxRetry = 3): Promise<T> {
+  let lastErr;
+  for (let i = 0; i < maxRetry; i++) {
+    try {
+      return await fn(...args);
+    } catch (e) {
+      lastErr = e;
+      if (i < maxRetry - 1) {
+        logger.warn('数据库操作失败，重试中', { fn: fn.name, args, retry: i + 1, error: e });
+        await new Promise(r => setTimeout(r, 200 * (i + 1)));
+      }
+    }
+  }
+  logger.error('数据库操作重试失败，已放弃', { fn: fn.name, args, error: lastErr });
+  throw lastErr;
 }
 
+async function getTaskDirect(taskId: string) {
+  return await asyncWithRetry(getTask, [taskId]);
+}
+async function getIpRecordsDirect(taskId: string) {
+  return await asyncWithRetry(getUniqueIpRecords, [taskId]);
+}
+
+async function getIpInfoWithRetry(ip: string) {
+  return await asyncWithRetry(getIpInfo, [ip]);
+}
+
+// 启动
 initDB()
   .then(async () => {
     logger.info('数据库初始化完成', {});
@@ -152,7 +196,6 @@ initDB()
     setInterval(() => {
       cleanZeroIpTasks();
     }, 60 * 60 * 1000);
-    // 定时数据库优化每天执行一次
     setInterval(async () => {
       try {
         logger.info('开始数据库VACUUM优化', {});
@@ -162,6 +205,21 @@ initDB()
         logger.error('数据库优化失败', { error: e });
       }
     }, 24 * 60 * 60 * 1000);
+    schedule.scheduleJob('0 0 * * *', () => {
+      const logsDir = path.resolve(process.cwd(), 'logs');
+      if (fs.existsSync(logsDir)) {
+        const files = fs.readdirSync(logsDir).filter(f => f.endsWith('.log'));
+        for (const file of files) {
+          const filePath = path.join(logsDir, file);
+          try {
+            fs.truncateSync(filePath, 0);
+            logger.info('定时清空日志文件', { file: filePath });
+          } catch (e) {
+            logger.error('定时清空日志文件失败', { file: filePath, error: e });
+          }
+        }
+      }
+    });
   })
   .catch((err) => {
     logger.error('服务启动失败', { err });
@@ -173,9 +231,16 @@ function getOperator(token, key) {
   return 'unknown';
 }
 
+// API: /api/page/* 仅记录IP和日志，不做鉴权
 app.get('/api/page/*', async (req, res, next) => {
   const taskid = req.path.split('/').pop() || '';
-  const task = await getTaskDirect(taskid);
+  let task;
+  try {
+    task = await getTaskDirect(taskid);
+  } catch (e) {
+    logger.error('获取任务失败', { taskid, error: e });
+    return res.status(500).json({ error: '任务查询失败' });
+  }
   if (!task) {
     logger.info('任务不存在，图片请求被拒绝', {
       ip: getClientIp(req),
@@ -184,7 +249,7 @@ app.get('/api/page/*', async (req, res, next) => {
       time: new Date().toISOString(),
       result: 'fail'
     });
-    return res.status(502).json({ error: '任务不存在' });
+    return res.status(404).json({ error: '任务不存在' });
   }
   // 有效期判断
   if (task.time !== 0) {
@@ -197,7 +262,7 @@ app.get('/api/page/*', async (req, res, next) => {
         time: new Date().toISOString(),
         result: 'fail'
       });
-      return res.status(200).json({ error: '任务已过期' });
+      return res.status(403).json({ error: '任务已过期' });
     }
   }
   if (task.status !== 'active') {
@@ -208,12 +273,12 @@ app.get('/api/page/*', async (req, res, next) => {
       time: new Date().toISOString(),
       result: 'fail'
     });
-    return res.status(200).json({ error: '任务未激活' });
+    return res.status(403).json({ error: '任务未激活' });
   }
-
+  // 记录IP
   const ip = getClientIp(req);
   let info = {};
-  try { info = await getIpInfo(ip); } catch (e) { logger.warn('IP归属查询失败', { ip, error: e }); }
+  try { info = await getIpInfoWithRetry(ip); } catch (e) { logger.warn('IP归属查询失败', { ip, error: e }); }
   queueIpRecord(task.id, ip, JSON.stringify(info));
   logger.info('图片请求', {
     ip,
@@ -223,6 +288,23 @@ app.get('/api/page/*', async (req, res, next) => {
     time: new Date().toISOString(),
     result: 'success'
   });
+  // mode=jump
+  let mode = '';
+  let jumpurl = '';
+  try {
+    if (typeof task.imgurl === 'string' && task.imgurl.startsWith('{')) {
+      const obj = JSON.parse(task.imgurl);
+      mode = obj.mode || '';
+      jumpurl = obj.jumpurl || '';
+    }
+  } catch {}
+  if (mode === 'jump') {
+    if (jumpurl && jumpurl.trim()) {
+      return res.redirect(jumpurl);
+    } else {
+      return res.redirect('https://www.bing.com');
+    }
+  }
   // 图片优先级：1. 任务imgurl 2. 本地图片 3. 全局api
   let imgurl = '';
   if (task.imgurl && String(task.imgurl).trim()) {
@@ -312,6 +394,7 @@ app.get('/api/getip/:taskid', async (req, res) => {
   res.json({ ips });
 });
 
+// API: /api/server
 app.get('/api/server', async (req, res, next) => {
   const { token, key } = getTokenAndKey(req);
   const operator = getOperator(token, key);
@@ -352,12 +435,18 @@ app.get('/api/server', async (req, res, next) => {
   const text = typeof req.query.text === 'string' ? req.query.text : '';
   const text1 = typeof req.query.text1 === 'string' ? req.query.text1 : '';
   const data = typeof req.query.data === 'string' ? req.query.data : '';
+  const mode = typeof req.query.mode === 'string' ? req.query.mode : '';
+  const jumpurl = typeof req.query.jumpurl === 'string' ? req.query.jumpurl : '';
 
   if (token === config.ADMIN_TOKEN) {
     try {
       const id = genTaskId();
-      await createTask(id, imgurl, time, '');
-      logger.info('新任务开启', { operator, authType: 'token', ip: getClientIp(req), url: req.originalUrl, taskId: id, imgurl, time, result: 'success' });
+      let imgurlToSave = imgurl;
+      if (mode === 'jump') {
+        imgurlToSave = JSON.stringify({ mode: 'jump', jumpurl: jumpurl });
+      }
+      await createTask(id, imgurlToSave, time, '');
+      logger.info('新任务开启', { operator, authType: 'token', ip: getClientIp(req), url: req.originalUrl, taskId: id, imgurl: imgurlToSave, time, result: 'success' });
       const protocol = req.protocol;
       const host = req.get('host');
       const recordUrl = `${protocol}://${host}/api/page/${id}`;
@@ -392,8 +481,12 @@ app.get('/api/server', async (req, res, next) => {
     }
     try {
       const id = genTaskId();
-      await createTask(id, imgurl, time, String(key));
-      logger.info('新任务开启', { operator, authType: 'key', ip: getClientIp(req), url: req.originalUrl, taskId: id, imgurl, time, result: 'success' });
+      let imgurlToSave = imgurl;
+      if (mode === 'jump') {
+        imgurlToSave = JSON.stringify({ mode: 'jump', jumpurl: jumpurl });
+      }
+      await createTask(id, imgurlToSave, time, String(key));
+      logger.info('新任务开启', { operator, authType: 'key', ip: getClientIp(req), url: req.originalUrl, taskId: id, imgurl: imgurlToSave, time, result: 'success' });
       const protocol = req.protocol;
       const host = req.get('host');
       const recordUrl = `${protocol}://${host}/api/page/${id}`;
@@ -455,6 +548,8 @@ app.get('/api/stop', async (req, res) => {
   logger.info('任务暂停', { operator, authType: token === config.ADMIN_TOKEN ? 'token' : 'key', ip: getClientIp(req), url: req.originalUrl, id, result: 'success' });
   res.json({ success: true });
 });
+
+// 列出全部任务及状态
 app.get('/api/list', auth, async function(req, res) {
   const operator = getOperator(req.cookies.webui_token, req.query.key);
   let tasks: any[] = [];
@@ -467,10 +562,11 @@ app.get('/api/list', auth, async function(req, res) {
   } else {
     tasks = [];
   }
+  // 先暂停超时任务
   for (const t of tasks) {
     if (t.status === 'active' && now - t.created_at > 10 * 60 * 1000) {
       await stopTask(t.id);
-      logger.info('暂停超时任务', { operator, taskId: t.id, result: 'auto-stopped' });
+      logger.info('自动暂停超时任务', { operator, taskId: t.id, result: 'auto-stopped' });
     }
   }
   // 再次查询，保证状态和数据库一致
@@ -513,7 +609,7 @@ function auth(req, res, next) {
         return res.status(403).json({ error: '未登录或无权限' });
       }
     });
-    return; 
+    return; // 必须return，防止后续代码继续执行
   }
 
   if (req.accepts('html')) {
@@ -558,6 +654,7 @@ app.get('/webui', auth, (req, res) => {
   res.sendFile(path.join(__dirname, 'webui/webui.html'));
 });
 
+// 工具函数
 function getTokenAndKey(req) {
   let token = '';
   let key = '';
@@ -566,7 +663,7 @@ function getTokenAndKey(req) {
   else if (Array.isArray(req.query.key)) key = req.query.key[0];
   return { token, key };
 }
-
+// API: /api/webui/settings（只允许管理员token访问，key无法获取）
 app.get('/api/webui/settings', auth, (req, res) => {
 
   res.json({
@@ -590,6 +687,7 @@ app.post('/api/webui/settings', auth, (req, res) => {
   logger.info('WebUI设置已更改', { operator: 'admin', ip: getClientIp(req), url: req.originalUrl, newCfg, result: 'success' });
   res.json({ success: true });
 });
+
 app.get('/api/webui/logs', auth, (req, res) => {
   const logPath = path.resolve(process.cwd(), 'logs/app.log');
   if (!fs.existsSync(logPath)) return res.json({ logs: '' });
@@ -599,6 +697,7 @@ app.get('/api/webui/logs', auth, (req, res) => {
   const pageLogs = logs.slice(start, start + limit).join('\n');
   res.json({ logs: pageLogs });
 });
+
 app.post('/api/webui/logs/clear', auth, (req, res) => {
   const logPath = path.resolve(process.cwd(), 'logs/app.log');
   fs.writeFileSync(logPath, '', 'utf-8');
@@ -629,11 +728,13 @@ app.post('/api/keys/delete', auth, async (req, res) => {
   logger.info('删除API Key', { operator: 'admin', ip: getClientIp(req), url: req.originalUrl, api_key: api_key.slice(0,4)+'****', result: 'success' });
   res.json({ success: true });
 });
+
 app.use((req, res, next) => {
   const token = req.query.token || req.headers['x-token'] || (req.cookies && req.cookies.webui_token);
   (req as any).token = token;
   next();
 });
+
 function logRequest(req: any, level: 'info'|'warn'|'error'|'debug', msg: string, meta?: any) {
   const base = {
     ip: getClientIp(req),
@@ -642,6 +743,7 @@ function logRequest(req: any, level: 'info'|'warn'|'error'|'debug', msg: string,
   };
   logger[level](msg, { ...base, ...meta });
 }
+
 app.get('/api/webui/rate-limit-config', auth, (req, res) => {
   res.json({ config: RATE_LIMIT_CONFIG });
 });
@@ -671,7 +773,7 @@ app.post('/api/webui/rate-limit-config', auth, (req, res) => {
   }
 });
 
-// 查询当前被封禁IP列表
+// 查询当前被封禁IP列表（WebUI用）
 app.get('/api/webui/ban-ip-list', auth, (req, res) => {
   const now = Date.now();
   const list = Array.from(requestStats.banIp.entries())
@@ -680,7 +782,7 @@ app.get('/api/webui/ban-ip-list', auth, (req, res) => {
   res.json({ list });
 });
 
-// 解封指定IP
+// 解封指定IP（WebUI用）
 app.post('/api/webui/unban-ip', auth, (req, res) => {
   const { ip } = req.body;
   if (ip && requestStats.banIp.has(ip)) {
@@ -704,20 +806,16 @@ app.use((req, res, next) => {
   apiStats.total++;
   apiStats.perPath[req.path] = (apiStats.perPath[req.path] || 0) + 1;
   // 记录UA
-  if (req.path.startsWith('/api/page/')) {
-    const ua = req.headers['user-agent'] || '';
-    apiStats.perUA[ua] = (apiStats.perUA[ua] || 0) + 1;
-  }
+  const ua = req.headers['user-agent'] || '';
+  apiStats.perUA[ua] = (apiStats.perUA[ua] || 0) + 1;
   // 记录状态码
-  const oldSend = res.send;
-  res.send = function (...args) {
+  res.on('finish', () => {
     apiStats.perStatus[res.statusCode] = (apiStats.perStatus[res.statusCode] || 0) + 1;
-    return oldSend.apply(this, args);
-  };
+  });
   next();
 });
 
-// 新增统计API
+// 统计API
 app.get('/api/statistics', (req, res) => {
   res.json({
     total: apiStats.total,
@@ -730,13 +828,14 @@ app.get('/api/statistics', (req, res) => {
 async function safeAddIpRecord(...args) {
   for (let i = 0; i < 3; i++) {
     try {
-      return await addIpRecord.apply(null, args);
+      return await addIpRecord.apply(null, [args[0], args[1], args[2], args[3]]);
     } catch (e) {
       if (i === 2) throw e;
       await new Promise(r => setTimeout(r, 50));
     }
   }
 }
+
 app.get('/help', (req, res) => {
   res.sendFile(path.join(__dirname, 'webui/webui-help.html'));
 });
@@ -745,6 +844,7 @@ app.get('/user/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'webui/webui-user-login.html'));
 });
 
+// 检查 API Key 是否有效
 app.get('/api/check-key', async (req, res) => {
   const key = req.query.key;
   if (!key || typeof key !== 'string') {
@@ -785,7 +885,7 @@ app.get('/api/user/tasks', auth, async (req, res) => {
   }
   let tasks: any[] = await getTasksByKey(apiKey.api_key);
   const now = Date.now();
-
+  // 先暂停所有超时任务
   for (const t of tasks) {
     if (t.status === 'active' && now - t.created_at > 10 * 60 * 1000) {
       await stopTask(t.id);
@@ -805,7 +905,6 @@ app.get('/api/user/tasks', auth, async (req, res) => {
   res.json({ tasks });
 });
 
-// 用户 WebUI 获取任务 IP
 app.get('/api/user/getip/:taskid', auth, async (req, res) => {
   const apiKey = (req as any).apiKey;
   if (!apiKey) {
@@ -838,7 +937,6 @@ app.get('/api/user/getip/:taskid', auth, async (req, res) => {
   res.json({ ips });
 });
 
-// 用户 WebUI 停止任务
 app.get('/api/user/stop', auth, async (req, res) => {
   const apiKey = (req as any).apiKey;
   if (!apiKey) {
@@ -858,7 +956,6 @@ app.get('/api/user/stop', auth, async (req, res) => {
   res.json({ success: true });
 });
 
-// 用户 WebUI 创建任务
 app.get('/api/user/server', auth, async (req, res) => {
   const apiKey = (req as any).apiKey;
   if (!apiKey) {
@@ -951,8 +1048,50 @@ app.get('/api/user/unbind-task', auth, async (req, res) => {
     logger.warn('任务不存在或无权限解绑', { operator: apiKey.api_key.slice(0,4)+'****', ip: getClientIp(req), url: req.originalUrl, result: 'fail' });
     return res.status(404).json({ error: '任务不存在' });
   }
-  // 将key置空
+  // 解绑
   await updateTaskKey(id, '');
   logger.info('用户解绑任务', { operator: apiKey.api_key.slice(0,4)+'****', ip: getClientIp(req), url: req.originalUrl, id, result: 'success' });
   res.json({ success: true });
 });
+app.get('/jump', (req, res) => {
+  const url = typeof req.query.url === 'string' ? req.query.url : '';
+  const ip = getClientIp(req);
+  const ua = req.headers['user-agent'] || '';
+  if (!url || !/^https?:\/\//i.test(url)) {
+    logger.warn('跳转失败，url无效', { ip, url, ua });
+    return res.status(400).send('无效的跳转地址');
+  }
+  logger.info('跳转请求', { ip, url, ua });
+  // 统计功能已由全局中间件自动记录
+  return res.redirect(url);
+});
+
+// ========== 新增：数据库操作失败自动重试队列 ===========
+interface RetryTask {
+  fn: (...args: any[]) => Promise<any>;
+  args: any[];
+  retryCount: number;
+}
+const dbRetryQueue: RetryTask[] = [];
+const MAX_RETRY = 3;
+const RETRY_INTERVAL = 5000; // 5秒重试一次
+
+function queueDbRetry(fn: (...args: any[]) => Promise<any>, args: any[], retryCount = 0) {
+  dbRetryQueue.push({ fn, args, retryCount });
+}
+
+setInterval(async () => {
+  if (dbRetryQueue.length === 0) return;
+  const tasks = dbRetryQueue.splice(0, dbRetryQueue.length);
+  for (const task of tasks) {
+    try {
+      await task.fn(...task.args);
+    } catch (e) {
+      if (task.retryCount < MAX_RETRY) {
+        queueDbRetry(task.fn, task.args, task.retryCount + 1);
+      } else {
+        logger.error('数据库重试失败，已放弃', { fn: task.fn.name, args: task.args, error: e });
+      }
+    }
+  }
+}, RETRY_INTERVAL);

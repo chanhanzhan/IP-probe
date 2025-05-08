@@ -91,7 +91,7 @@ export async function getIpInfo(ip: string, geo?: string) {
       return {};
     }
   } else {
-
+    // 默认全部API都查，返回数组
     const results = [];
     for (const api of apis) {
       try {

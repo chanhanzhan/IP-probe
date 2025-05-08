@@ -3,6 +3,14 @@
     "development"
   ],
   "hints": {
+    "compat-api/css": [
+      "default",
+      {
+        "ignore": [
+          "-webkit-overflow-scrolling"
+        ]
+      }
+    ],
     "no-inline-styles": "off"
   }
 }

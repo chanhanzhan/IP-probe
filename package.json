@@ -2,15 +2,18 @@
   "name": "iplist",
   "version": "1.0.0",
   "main": "main.ts",
+  "type": "module",
   "scripts": {
-    "start": "node --loader main.ts"
+    "start": "ts-node main.ts"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
     "ioredis": "^5.3.2",
     "node-fetch": "^3.3.2",
+    "node-schedule": "^2.1.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
   },

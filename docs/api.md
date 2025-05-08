@@ -121,21 +121,30 @@
 ## 用户相关接口
 
 ### 1. 用户 WebUI 登录
+
 `GET /user/login`
+
 - 说明：返回用户登录页面（HTML）。
 - 示例：
+
   ```http
+
   GET /user/login
   ```
+
 - 返回：HTML 页面
 
 ### 2. 用户 WebUI 主页面
+
 `GET /user?key=xxx`
+
 - 说明：需传入有效 `key`，否则跳转到登录页。
 - 参数：
   - `key` (string, 必填) 用户API Key
 - 示例：
+
   ```http
+
   GET /user?key=1234567890abcdef
   ```
 - 返回：HTML 页面

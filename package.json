@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "main.ts",
   "scripts": {
-    "start": "node --loader main.ts"
+    "start": "node --loader main.ts",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
@@ -19,8 +21,8 @@
   "devDependencies": {
     "@types/cookie-parser": "^1.4.3",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.4.2",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.2.2"
+    "@types/node": "^20.17.46",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }

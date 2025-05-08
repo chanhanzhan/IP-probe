@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { CONFIG } from '../config.ts';
+import { CONFIG } from '../config';
 
 export function getClientIp(req: any): string {
   // Express下获取真实IP

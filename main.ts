@@ -3,12 +3,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fetch from 'node-fetch';
 import fs from 'fs';
-import { CONFIG, loadConfig, saveConfig } from './config.ts';
+import { CONFIG, loadConfig, saveConfig } from './config';
 // import type { AppConfig } from './config.ts'; // 如需类型可解开
-import { initDB, createTask, stopTask, getTask, getActiveTask, addIpRecord, getUniqueIpRecords, getAllTasks, getUniqueIpCount, createApiKey, updateApiKeyBalance, deleteApiKey, getApiKey, listApiKeys, consumeApiKey, cleanZeroIpTasks, getTaskLastUpdateTime, getIpRecordsLastUpdateTime, vacuumAndAnalyze, getTasksByKey, updateTaskKey } from './db/sqlite.ts';
-import { getClientIp, getIpInfo } from './utils/ip.ts';
-import { genTaskId } from './utils/task.ts';
-import { logger } from './utils/logger.ts';
+import { initDB, createTask, stopTask, getTask, getActiveTask, addIpRecord, getUniqueIpRecords, getAllTasks, getUniqueIpCount, createApiKey, updateApiKeyBalance, deleteApiKey, getApiKey, listApiKeys, consumeApiKey, cleanZeroIpTasks, getTaskLastUpdateTime, getIpRecordsLastUpdateTime, vacuumAndAnalyze, getTasksByKey, updateTaskKey } from './db/sqlite';
+import { getClientIp, getIpInfo } from './utils/ip';
+import { genTaskId } from './utils/task';
+import { logger } from './utils/logger';
 import cookieParser from 'cookie-parser';
 import sqlite3 from 'sqlite3';
 import * as schedule from 'node-schedule';

@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
+    "moduleDetection": "force",
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "outDir": "./dist"
+  },
+  "include": ["./**/*.ts"]
+}

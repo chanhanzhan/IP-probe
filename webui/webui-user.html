@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP 列表服务 - 用户面板</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { padding: 20px; }
+        .task-card { margin-bottom: 20px; }
+        .ip-list { max-height: 500px; overflow-y: auto; }
+        .ip-item { padding: 10px; border-bottom: 1px solid #eee; }
+        .ip-item:hover { background: #f8f9fa; }
+        .loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); display: none; }
+        .loading.active { display: flex; align-items: center; justify-content: center; }
+        .modal-backdrop { z-index: 1040 !important; }
+        .modal { z-index: 1050 !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>IP 列表服务 - 用户面板</h1>
+            <div>
+                <a href="/help" class="btn btn-outline-primary me-2" target="_blank">帮助文档</a>
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newTaskModal">
+                    <i class="bi bi-plus-lg"></i> 新建任务
+                </button>
+            </div>
+        </div>
+
+        <div class="row" id="taskList">
+            <!-- 任务列表将通过 JavaScript 动态加载 -->
+        </div>
+
+        <!-- 新建任务模态框 -->
+        <div class="modal fade" id="newTaskModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">新建任务</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" title="关闭"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="newTaskForm">
+                            <div class="mb-3">
+                                <label class="form-label">图片URL</label>
+                                <input type="url" class="form-control" name="imgurl" placeholder="可选">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">链接URL</label>
+                                <input type="url" class="form-control" name="url" placeholder="可选">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="taskTime">任务时长（分钟）</label>
+                                <input type="number" class="form-control" id="taskTime" name="time" value="10" min="1" max="60" title="请输入1-60之间的数字" placeholder="请输入任务时长">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="taskTitle">自定义标题</label>
+                                <input type="text" class="form-control" id="taskTitle" name="text" placeholder="可选">
+                            </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">自定义内容</label>
+                                <textarea class="form-control" name="text1" placeholder="可选"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="data" value="pb" id="dataCheck">
+                                    <label class="form-check-label" for="dataCheck">
+                                        使用特殊格式返回
+                                    </label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="createTask()">创建</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载中遮罩 -->
+        <div class="loading" id="loading">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+        </div>
+
+        <!-- 在页面合适位置插入<div id="userTaskCreateResult"></div>用于展示结果 -->
+        <div id="userTaskCreateResult"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 获取URL参数
+        function getUrlParam(name) {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get(name);
+        }
+
+        // 显示/隐藏加载中
+        function toggleLoading(show) {
+            document.getElementById('loading').classList.toggle('active', show);
+        }
+
+        // 格式化时间
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN', { hour12: false });
+        }
+
+        // 通用fetch工具，允许2xx/304都能正常解析json
+        async function fetchJson(url, options = {}) {
+            const response = await fetch(url, options);
+            if ((response.status >= 200 && response.status < 300) || response.status === 304) {
+                try {
+                    return await response.json();
+                } catch (e) {
+                    throw new Error('响应内容不是有效的JSON: ' + e);
+                }
+            } else {
+                let text = '';
+                try { text = await response.text(); } catch {}
+                throw new Error('请求失败，状态码: ' + response.status + ', 内容: ' + text);
+            }
+        }
+
+        // 加载任务列表
+        async function loadTasks() {
+            toggleLoading(true);
+            try {
+                const key = getUrlParam('key');
+                const data = await fetchJson(`/api/list?key=${key}`);
+                const taskList = document.getElementById('taskList');
+                taskList.innerHTML = '';
+                const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+                tasks.forEach(task => {
+                    const card = document.createElement('div');
+                    card.className = 'col-md-6 col-lg-4';
+                    card.innerHTML = `
+                        <div class="card task-card">
+                            <div class="card-body">
+                                <h5 class="card-title">任务 ${task.id}</h5>
+                                <p class="card-text">
+                                    <small class="text-muted">创建时间：${formatDate(task.created_at)}</small><br>
+                                    <small class="text-muted">状态：${task.status}</small><br>
+                                    <small class="text-muted">IP数量：${task.ipCount}</small>
+                                </p>
+                                <div class="d-flex justify-content-between">
+                                    <button class="btn btn-primary btn-sm" onclick="viewIps('${task.id}')">
+                                        查看IP
+                                    </button>
+                                    ${task.status === '活跃' ? `
+                                        <button class="btn btn-danger btn-sm" onclick="stopTask('${task.id}')">
+                                            停止任务
+                                        </button>
+                                    ` : ''}
+                                    <button class="btn btn-outline-secondary btn-sm ms-2" onclick="unbindTask('${task.id}')">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    taskList.appendChild(card);
+                });
+            } catch (error) {
+                console.error('加载任务列表失败:', error);
+                alert('加载任务列表失败，请刷新页面重试\n' + error);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // 查看IP列表
+        async function viewIps(taskId) {
+            toggleLoading(true);
+            try {
+                const key = getUrlParam('key');
+                const data = await fetchJson(`/api/getip/${taskId}?key=${key}`);
+                let tableHtml = `<table class="table table-bordered"><thead><tr><th>IP</th><th>API来源</th><th>国家</th><th>省份</th><th>城市</th><th>运营商</th></tr></thead><tbody>`;
+                (data.ips || []).forEach(ipObj => {
+                  const apis = Array.isArray(ipObj.apis) ? ipObj.apis : [];
+                  apis.forEach(api => {
+                    tableHtml += `<tr><td>${ipObj.ip}</td><td>${api.fromwhere || ''}</td><td>${api.country || ''}</td><td>${api.region || ''}</td><td>${api.city || ''}</td><td>${api.isp || api.org || ''}</td></tr>`;
+                  });
+                });
+                tableHtml += '</tbody></table>';
+                // 保证只插入一个弹窗
+                let oldModal = document.getElementById('ip-modal');
+                if (oldModal) oldModal.parentNode.removeChild(oldModal);
+                // 标准化弹窗结构
+                let modalDiv = document.createElement('div');
+                modalDiv.id = 'ip-modal';
+                modalDiv.innerHTML = `
+                    <div class="modal fade" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">任务 ${taskId} 的IP归属信息</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                                </div>
+                                <div class="modal-body">
+                                    ${tableHtml}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modalDiv);
+                const modalEl = modalDiv.querySelector('.modal');
+                const modal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true });
+                modal.show();
+                // ESC关闭、Tab焦点锁定
+                modalEl.addEventListener('shown.bs.modal', () => {
+                    modalEl.focus();
+                });
+                modalEl.addEventListener('hidden.bs.modal', () => {
+                    document.body.removeChild(modalDiv);
+                    document.body.style.overflow = '';
+                });
+            } catch (error) {
+                console.error('加载IP列表失败:', error);
+                alert('加载IP列表失败，请重试\n' + error);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // 复制记录链接
+        function copyRecordLink(taskId) {
+            const url = location.protocol + '//' + location.host + '/api/page/' + taskId;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('链接已复制到剪贴板', 'success');
+            }).catch(() => {
+                showToast('复制失败，请手动复制', 'error');
+            });
+        }
+
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : 'danger'} border-0 position-fixed bottom-0 end-0 m-3`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            toast.addEventListener('hidden.bs.toast', () => {
+                document.body.removeChild(toast);
+            });
+        }
+
+        // 停止任务
+        async function stopTask(taskId) {
+            if (!confirm('确定要停止该任务吗？')) return;
+            toggleLoading(true);
+            try {
+                const key = getUrlParam('key');
+                const data = await fetchJson(`/api/stop?key=${key}&id=${taskId}`);
+                if (data.success) {
+                    alert('任务已停止');
+                    loadTasks();
+                } else {
+                    throw new Error(data.error || '停止任务失败');
+                }
+            } catch (error) {
+                console.error('停止任务失败:', error);
+                alert('停止任务失败，请重试\n' + error);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // 创建任务
+        async function createTask() {
+            const form = document.getElementById('newTaskForm');
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                if (value) params.append(key, value);
+            }
+            toggleLoading(true);
+            try {
+                const key = getUrlParam('key');
+                params.append('key', key);
+                const data = await fetchJson(`/api/server?${params.toString()}`);
+                let html = '';
+                if (data.taskId && data.recordUrl) {
+                    html = `<div class='alert alert-success d-flex align-items-center' style='margin-top:12px;'>
+                        <div>
+                            <b>任务创建成功！</b><br>
+                            <span>任务ID：</span><span class='fw-bold text-primary'>${data.taskId}</span>
+                            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${data.taskId}")'>复制ID</button><br>
+                            <span>链接：</span><a href='${data.recordUrl}' target='_blank'>${data.recordUrl}</a>
+                            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${data.recordUrl}")'>复制链接</button>
+                        </div>
+                    </div>`;
+                    bootstrap.Modal.getInstance(document.getElementById('newTaskModal')).hide();
+                    loadTasks();
+                } else if (data['1'] && data['1']['12'] && data['1']['12']['14']) {
+                    const recordUrl = data['1']['12']['14']['3'];
+                    const url = data['1']['1'];
+                    html = `<div class='alert alert-success d-flex align-items-center' style='margin-top:12px;'>
+                        <div>
+                            <b>特殊格式任务创建成功！</b><br>
+                            <span>链接：</span><a href='${url}' target='_blank'>${url}</a><br>
+                            <span>记录地址：</span><a href='${recordUrl}' target='_blank'>${recordUrl}</a>
+                            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${recordUrl}")'>复制链接</button><br>
+                            <span>完整返回：</span><pre style='font-size:13px;background:#f8fafc;border-radius:6px;padding:8px 12px;'>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    </div>`;
+                    bootstrap.Modal.getInstance(document.getElementById('newTaskModal')).hide();
+                    loadTasks();
+                } else {
+                    html = `<div class='alert alert-danger' style='margin-top:12px;'>创建失败：${data.error||'未知错误'}</div>`;
+                }
+                document.getElementById('userTaskCreateResult').innerHTML = html;
+            } catch (error) {
+                console.error('创建任务失败:', error);
+                document.getElementById('userTaskCreateResult').innerHTML = `<div class='alert alert-danger' style='margin-top:12px;'>创建任务失败，请重试<br>${error}</div>`;
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        // 一键复制
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(()=>{
+                showToast('已复制', 'success');
+            });
+        }
+
+        // 修复新建任务弹窗按钮事件绑定
+        function showNewTaskModal() {
+            // 保证只插入一个弹窗
+            let oldModal = document.getElementById('new-task-modal');
+            if (oldModal) oldModal.parentNode.removeChild(oldModal);
+            let modalDiv = document.createElement('div');
+            modalDiv.id = 'new-task-modal';
+            modalDiv.innerHTML = `
+                <div class="modal fade" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">新建任务</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="newTaskForm">
+                                    <div class="mb-3">
+                                        <label class="form-label">图片URL</label>
+                                        <input type="url" class="form-control" name="imgurl" placeholder="可选">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">链接URL</label>
+                                        <input type="url" class="form-control" name="url" placeholder="可选">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">任务时长（分钟）</label>
+                                        <input type="number" class="form-control" name="time" value="10" min="1" max="60" placeholder="可选">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">自定义标题</label>
+                                        <input type="text" class="form-control" name="text" placeholder="可选">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">自定义内容</label>
+                                        <textarea class="form-control" name="text1" placeholder="可选"></textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="data" value="pb" id="dataCheck">
+                                            <label class="form-check-label" for="dataCheck">
+                                                使用特殊格式返回
+                                            </label>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="cancelNewTaskBtn">取消</button>
+                                <button type="button" class="btn btn-primary" id="createNewTaskBtn">创建</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalDiv);
+            const modalEl = modalDiv.querySelector('.modal');
+            const modal = new bootstrap.Modal(modalEl, { backdrop: true, keyboard: true });
+            modal.show();
+            // 事件绑定
+            modalDiv.querySelector('#cancelNewTaskBtn').onclick = () => {
+                modal.hide();
+            };
+            modalDiv.querySelector('#createNewTaskBtn').onclick = async () => {
+                await createTask();
+                modal.hide();
+            };
+            modalEl.addEventListener('hidden.bs.modal', () => {
+                document.body.removeChild(modalDiv);
+            });
+        }
+
+        // 绑定按钮事件
+        window.addEventListener('DOMContentLoaded', () => {
+            const newTaskBtn = document.querySelector('button[data-bs-target="#newTaskModal"]');
+            if (newTaskBtn) {
+                newTaskBtn.onclick = showNewTaskModal;
+            }
+            const key = getUrlParam('key');
+            if (!key) {
+                window.location.href = '/help';
+                return;
+            }
+            loadTasks();
+        });
+
+        // 新增：解绑任务API
+        async function unbindTask(taskId) {
+            toggleLoading(true);
+            try {
+                const key = getUrlParam('key');
+                const data = await fetchJson(`/api/user/unbind-task?id=${taskId}&key=${key}`);
+                if (data.success) {
+                    alert('任务已删除');
+                    loadTasks();
+                } else {
+                    throw new Error(data.error || '删除失败');
+                }
+            } catch (error) {
+                console.error('删除任务失败:', error);
+                alert('删除任务失败，请重试\n' + error);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+        window.unbindTask = unbindTask;
+    </script>
+</body>
+</html> 

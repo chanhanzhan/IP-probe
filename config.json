@@ -1,0 +1,16 @@
+{
+  "ADMIN_TOKEN": "166824c7-9a88-47ad-8964-d4ee0b5319cf",
+  "IMAGE_URL": "https://www.loliapi.com/acg/",
+  "IMAGE_DIR": "./images",
+  "LOCAL_IMAGE_FIRST": true,
+  "IPINFO_API": "https://ipinfo.io/",
+  "DB_TYPE": "sqlite",
+  "RATE_LIMIT_CONFIG": {
+    "STAT_WINDOW_MS": 86400000,
+    "CLEAN_INTERVAL_MS": 600000,
+    "RATE_LIMIT_WINDOW_MS": 60000,
+    "RATE_LIMIT_MAX": 10,
+    "RATE_LIMIT_BAN_TIMES": 1,
+    "BAN_DURATION_MS": 600000
+  }
+}

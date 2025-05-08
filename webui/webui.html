@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IPList 管理后台</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #e0e7ef 0%, #f8fafc 100%);
+      font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+    }
+    .navbar {
+      background: #2563eb;
+      color: #fff;
+      padding: 0.7rem 2rem;
+      box-shadow: 0 2px 12px rgba(37,99,235,0.08);
+      margin-bottom: 32px;
+    }
+    .navbar-brand {
+      font-size: 1.6rem;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+    .nav-link {
+      color: #fff;
+      font-size: 1.1rem;
+      margin-right: 18px;
+      transition: color 0.2s;
+    }
+    .nav-link.active, .nav-link:hover {
+      color: #ffe066;
+      text-decoration: underline;
+    }
+    .logout-btn {
+      background: #f87171;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 18px;
+      font-size: 15px;
+      color: #fff;
+      margin-left: 18px;
+      transition: background 0.2s;
+    }
+    .logout-btn:hover { background: #dc2626; }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto 40px auto;
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 4px 32px rgba(0,0,0,0.10);
+      padding: 36px 32px 32px 32px;
+    }
+    .tab-content > .tab-pane { display: none; }
+    .tab-content > .active { display: block; }
+    .nav-tabs .nav-link.active {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 8px 8px 0 0;
+    }
+    .nav-tabs .nav-link {
+      color: #2563eb;
+      font-weight: 500;
+      border: none;
+      background: #f1f5f9;
+      margin-right: 4px;
+      border-radius: 8px 8px 0 0;
+    }
+    .section {
+      margin-bottom: 36px;
+      padding-bottom: 18px;
+      border-bottom: 1.5px solid #e5e7eb;
+    }
+    .section:last-child { border-bottom: none; }
+    .stat {
+      display: inline-flex;
+      align-items: center;
+      margin-right: 32px;
+      font-size: 17px;
+      color: #2563eb;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 8px 18px;
+      margin-bottom: 10px;
+    }
+    .stat strong { font-size: 22px; color: #1e293b; margin-left: 6px; }
+    .stat i { font-size: 1.5rem; margin-right: 8px; color: #60a5fa; }
+    .table {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      margin-bottom: 10px;
+    }
+    .table th, .table td { vertical-align: middle; }
+    .table th { background: #f1f5f9; color: #333; font-weight: 600; }
+    .table-striped > tbody > tr:nth-of-type(odd) { background-color: #f8fafc; }
+    .ip-table th, .ip-table td { text-align: center; }
+    .ip-table th { background: #f1f5f9; }
+    .ip-table { border-radius: 8px; overflow: hidden; }
+    .badge-status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #fff;
+    }
+    .badge-active { background: #22c55e; }
+    .badge-paused { background: #64748b; }
+    .btn {
+      border-radius: 6px;
+      font-size: 15px;
+      padding: 6px 18px;
+      margin: 4px 4px 4px 0;
+      transition: background 0.2s, box-shadow 0.2s;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+    }
+    .btn-primary { background: #2563eb; border: none; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-outline-secondary { border: 1.5px solid #cbd5e1; color: #2563eb; background: #f8fafc; }
+    .btn-outline-secondary:hover { background: #e0e7ef; }
+    .form-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+    .form-row label { flex: 1 1 180px; margin-bottom: 0; }
+    .form-row input, .form-row select { flex: 2 1 320px; margin-bottom: 0; }
+    .form-row .form-check { flex: 0 0 auto; margin-left: 18px; }
+    .form-check-label { margin-left: 4px; font-weight: 400; }
+    .key-card {
+      background: #f1f5f9;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      padding: 16px 18px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .key-info { font-weight: bold; color: #2563eb; }
+    .key-balance input { width: 80px; }
+    .key-date { color: #64748b; font-size: 14px; }
+    .key-actions button { margin-left: 8px; }
+    @media (max-width: 900px) {
+      .container { padding: 10px; }
+      .card { padding: 12px 8px; }
+    }
+    @media (max-width: 600px) {
+      .container { padding: 4px; }
+      .form-row { flex-direction: column; gap: 8px; }
+      input[type="text"], input[type="password"], input[type="number"] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="navbar d-flex align-items-center justify-content-between">
+    <span class="navbar-brand">IPList 管理后台</span>
+    <div>
+      <a class="nav-link active" href="#" onclick="showTab('tab-tasks')">任务管理</a>
+      <a class="nav-link" href="#" onclick="showTab('tab-settings')">系统设置</a>
+      <a class="nav-link" href="#" onclick="showTab('tab-logs')">日志系统</a>
+      <a class="nav-link" href="#" onclick="showTab('tab-keys')">API Key 管理</a>
+      <button class="logout-btn" onclick="logout()"><i class="bi bi-box-arrow-right"></i> 退出登录</button>
+    </div>
+  </nav>
+  <div class="container">
+    <ul class="nav nav-tabs mb-3">
+      <li class="nav-item"><a class="nav-link active" id="tab-tasks-btn" href="#" onclick="showTab('tab-tasks')">任务管理</a></li>
+      <li class="nav-item"><a class="nav-link" id="tab-settings-btn" href="#" onclick="showTab('tab-settings')">系统设置</a></li>
+      <li class="nav-item"><a class="nav-link" id="tab-logs-btn" href="#" onclick="showTab('tab-logs')">日志系统</a></li>
+      <li class="nav-item"><a class="nav-link" id="tab-keys-btn" href="#" onclick="showTab('tab-keys')">API Key 管理</a></li>
+    </ul>
+    <div class="tab-content">
+      <div class="tab-pane active" id="tab-tasks">
+        <div class="section card" id="sysinfo">
+          <h2>系统信息</h2>
+          <div id="sysstat">
+            <span class="stat"><i class="bi bi-list-task"></i>任务总数：<strong id="stat-task">-</strong></span>
+            <span class="stat"><i class="bi bi-lightning-charge"></i>活跃任务：<strong id="stat-active">-</strong></span>
+            <span class="stat"><i class="bi bi-database"></i>数据库类型：<strong id="stat-db">-</strong></span>
+          </div>
+        </div>
+        <div class="section card">
+          <h2 class="mb-3">任务管理</h2>
+          <div class="mb-3 d-flex flex-wrap gap-2">
+            <button class="btn btn-outline-secondary" onclick="loadTaskList()">刷新任务列表</button>
+            <button id="batchStopBtn" class="btn btn-outline-secondary" onclick="batchStopTask()" style="display:none;">批量暂停</button>
+          </div>
+          <table id="tasktable" class="table table-striped table-hover align-middle" style="display:none">
+            <thead><tr><th><input type="checkbox" id="selectAllTasks" /></th><th>任务ID</th><th>状态</th><th>创建时间</th><th>IP数</th><th>图片</th><th>有效期</th><th>操作</th><th>入口链接</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <div class="row g-3 mb-2">
+            <div class="col-md-4">
+              <label class="form-label">自定义图片URL</label>
+              <input id="customImgUrl" type="text" class="form-control" placeholder="留空用全局" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label" for="customTime">有效期(分钟,0为永久)</label>
+              <input id="customTime" type="number" min="0" max="10080" value="10" class="form-control" placeholder="10" title="有效期(分钟,0为永久)" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">链接URL</label>
+              <input id="customUrl" type="text" class="form-control" placeholder="可选" />
+            </div>
+          </div>
+          <div class="row g-3 mb-2">
+            <div class="col-md-3">
+              <label class="form-label">自定义标题</label>
+              <input id="customText" type="text" class="form-control" placeholder="可选" />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">自定义内容</label>
+              <input id="customText1" type="text" class="form-control" placeholder="可选" />
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <div class="form-check">
+                <input id="customPb" type="checkbox" class="form-check-input" />
+                <label class="form-check-label" for="customPb">特殊格式(data=pb)</label>
+              </div>
+            </div>
+          </div>
+          <div class="mb-2">
+            <button class="btn btn-primary" onclick="startTask()">开启任务</button>
+            <button class="btn btn-outline-secondary" onclick="stopTask()">暂停任务</button>
+          </div>
+          <div class="mb-2">当前任务ID: <span id="taskid" class="fw-bold text-primary">(无)</span>
+            <span id="recordlinkbox" style="display:none;margin-left:10px;">
+              <a id="recordlink" href="#" target="_blank" class="btn btn-sm btn-outline-primary">记录链接</a>
+            </span>
+          </div>
+          <div id="taskimgbox" class="mb-2"></div>
+          <button class="btn btn-outline-secondary mb-2" onclick="getIpList()">获取IP列表</button>
+          <div id="iplist"></div>
+          <div id="taskipbox" style="display:none;margin-top:16px;"></div>
+          <div id="taskCreateResult"></div>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-settings">
+        <div class="section card">
+          <h2 class="mb-3">系统设置</h2>
+          <form id="settings">
+            <div class="row g-3 mb-2">
+              <div class="col-md-4">
+                <label for="imgurl" class="form-label">图片URL</label>
+                <input id="imgurl" type="text" class="form-control" placeholder="图片URL" />
+              </div>
+              <div class="col-md-4">
+                <label for="imgdir" class="form-label">图片库路径</label>
+                <input id="imgdir" type="text" class="form-control" placeholder="如 ./images" />
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <div class="form-check">
+                  <input id="localfirst" type="checkbox" class="form-check-input" />
+                  <label class="form-check-label" for="localfirst">本地图片优先</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-3 mb-2">
+              <div class="col-md-6">
+                <label for="ipapi" class="form-label">IP归属API</label>
+                <input id="ipapi" type="text" class="form-control" placeholder="如 https://ipinfo.io/" />
+              </div>
+              <div class="col-md-6">
+                <label for="token2" class="form-label">管理员Token(修改)</label>
+                <input id="token2" type="password" class="form-control" placeholder="新管理员Token" />
+              </div>
+            </div>
+            <div class="mb-2">
+              <button type="button" class="btn btn-primary" onclick="saveSettings()">保存设置</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-logs">
+        <div class="section card">
+          <h2 class="mb-3">日志系统</h2>
+          <div class="d-flex gap-2 mb-2 align-items-center">
+            <button id="refreshLogBtn" class="btn btn-outline-primary" onclick="loadLog()">刷新日志</button>
+            <button id="clearLogBtn" class="btn btn-outline-danger" onclick="clearLog()">清空日志</button>
+            <span id="logLoadingTip" class="ms-3 text-secondary" style="display:none;"><span class="spinner-border spinner-border-sm me-1"></span>日志加载中…</span>
+            <span id="logAutoRefreshTip" class="ms-3 text-secondary" style="display:none;">自动刷新中…</span>
+          </div>
+          <div class="bg-dark text-light rounded p-3 mb-2" id="log" style="min-height:180px;max-height:320px;overflow:auto;font-family:monospace;font-size:14px;"></div>
+          <div class="d-flex justify-content-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="prevLogPage()">上一页</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="nextLogPage()">下一页</button>
+          </div>
+        </div>
+      </div>
+      <div class="tab-pane" id="tab-keys">
+        <div class="section card">
+          <h2 class="mb-3">API Key 管理</h2>
+          <div class="d-flex gap-2 mb-2 align-items-center">
+            <button id="refreshKeyBtn" class="btn btn-outline-primary" onclick="loadKeyList()">刷新Key列表</button>
+            <span id="keyLoadingTip" class="ms-3 text-secondary" style="display:none;"><span class="spinner-border spinner-border-sm me-1"></span>Key列表加载中…</span>
+            <span id="keyAutoRefreshTip" class="ms-3 text-secondary" style="display:none;">自动刷新中…</span>
+          </div>
+          <div id="keycardlist" class="mb-3"></div>
+          <form id="addkeyform" class="row g-2 align-items-center">
+            <div class="col-auto">
+              <input id="newkey" type="text" class="form-control" placeholder="新Key（可随机）" style="width:180px;" />
+            </div>
+            <div class="col-auto">
+              <input id="newbalance" type="number" class="form-control" placeholder="初始余额" style="width:100px;" />
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-primary" onclick="addKey()">新增Key</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    let taskId = '';
+    let logStart = 0;
+    const logLimit = 200;
+    let autoRefreshTimer = null;
+    let isTableHover = false;
+    // 自动刷新任务列表
+    function startAutoRefreshTaskList() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(() => {
+        if (!isTableHover) loadTaskList();
+      }, 30000);
+    }
+    function stopAutoRefreshTaskList() {
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    }
+    // 绑定表格悬停事件，悬停时暂停自动刷新
+    document.addEventListener('DOMContentLoaded', () => {
+      const table = document.getElementById('tasktable');
+      if (table) {
+        table.addEventListener('mouseenter', () => { isTableHover = true; });
+        table.addEventListener('mouseleave', () => { isTableHover = false; });
+      }
+      startAutoRefreshTaskList();
+    });
+    // 统一API请求自动拼接token参数，前端不再做任何token检测
+    function getToken() {
+      const m = document.cookie.match(/(?:^|;)\s*webui_token=([^;]+)/);
+      return m ? m[1] : '';
+    }
+    function fetchWithToken(url, options = {}) {
+      const token = getToken();
+      let realUrl = url;
+      if (token) {
+        const sep = url.includes('?') ? '&' : '?';
+        realUrl = `${url}${sep}token=${encodeURIComponent(token)}`;
+      }
+      return fetch(realUrl, { ...options, credentials: 'include' });
+    }
+    function loadTaskList() {
+      fetch('/api/list', { credentials: 'include' })
+        .then(r=>r.json()).then(data=>{
+          const table = document.getElementById('tasktable');
+          const tbody = table.querySelector('tbody');
+          tbody.innerHTML = '';
+          let activeCount = 0;
+          let hasTasks = data.tasks && data.tasks.length;
+          if(hasTasks) {
+            data.tasks.forEach(t=>{
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td><input type='checkbox' class='task-checkbox' data-id='${t.id}' /></td>
+                <td>${t.id}</td>
+                <td><span class='badge badge-status ${t.status==="活跃"?'badge-active':'badge-paused'}'>${t.status}</span></td>
+                <td>${t.created_at}</td>
+                <td class='text-center'><span style='color:#2563eb;font-weight:bold;'>${t.ipCount||0}</span></td>
+                <td>${t.imgurl ? `<img src='${t.imgurl}' style='max-width:60px;max-height:40px;cursor:pointer;border-radius:6px;box-shadow:0 1px 4px #cbd5e1;' onclick='previewImg(\"${t.imgurl}\")' title='点击预览'/>` : '-'}</td>
+                <td>${t.time===0?'永久':t.time+'分钟'}</td>
+                <td><button class='btn btn-sm btn-primary' onclick='showTaskIp("${t.id}")'><i class='bi bi-eye'></i> 查看IP记录</button></td>
+                <td>
+                  <a href='/api/page/${t.id}' target='_blank' class='btn btn-sm btn-outline-primary'><i class='bi bi-link-45deg'></i> 记录链接</a>
+                  <button class='btn btn-sm btn-outline-secondary ms-1' onclick='copyTaskLink("${t.id}")'><i class='bi bi-clipboard'></i> 复制</button>
+                </td>
+              `;
+              tr.onclick = (e)=>{
+                if(e.target.tagName==='BUTTON' || e.target.type==='checkbox') return;
+                taskId = t.id;
+                document.getElementById('taskid').innerText = taskId;
+                if(t.imgurl){
+                  document.getElementById('taskimgbox').innerHTML = `<img src='${t.imgurl}' style='max-width:220px;max-height:120px;cursor:pointer;' onclick='previewImg("${t.imgurl}")' title='点击放大预览'/>`;
+                }else{
+                  document.getElementById('taskimgbox').innerHTML = '';
+                }
+              };
+              if(t.status==='活跃') activeCount++;
+              tbody.appendChild(tr);
+            });
+            table.style.display = '';
+            document.getElementById('batchStopBtn').style.display = '';
+          } else {
+            table.style.display = 'none';
+            document.getElementById('batchStopBtn').style.display = 'none';
+          }
+          document.getElementById('stat-task').innerText = hasTasks ? data.tasks.length : 0;
+          document.getElementById('stat-active').innerText = activeCount;
+          // 绑定全选事件
+          const selectAll = document.getElementById('selectAllTasks');
+          if(selectAll) {
+            selectAll.checked = false;
+            selectAll.onclick = function() {
+              document.querySelectorAll('.task-checkbox').forEach(cb=>{ cb.checked = selectAll.checked; });
+            };
+          }
+        });
+    }
+    async function startTask() {
+      // 新建任务时带上自定义图片和有效期参数
+      const imgurl = document.getElementById('customImgUrl').value.trim();
+      const time = parseInt(document.getElementById('customTime').value) || 10;
+      const urlVal = document.getElementById('customUrl').value.trim();
+      const text = document.getElementById('customText').value.trim();
+      const text1 = document.getElementById('customText1').value.trim();
+      const pb = document.getElementById('customPb').checked;
+      let url = '/api/server';
+      const params = [];
+      if(imgurl) params.push('imgurl='+encodeURIComponent(imgurl));
+      if(time!==10) params.push('time='+time);
+      if(urlVal) params.push('url='+encodeURIComponent(urlVal));
+      if(text) params.push('text='+encodeURIComponent(text));
+      if(text1) params.push('text1='+encodeURIComponent(text1));
+      if(pb) params.push('data=pb');
+      if(params.length) url += '?' + params.join('&');
+      const res = await fetchWithToken(url);
+      if (!res) return;
+      if (res.status === 401 || res.status === 403) {
+        alert('登录已失效，请重新登录');
+        window.location.href = '/login';
+        return;
+      }
+      if (!res.ok) {
+        alert('创建任务失败，状态码：' + res.status);
+        return;
+      }
+      const data = await res.json();
+      // 页面内展示结果
+      let html = '';
+      if(data.taskId && data.recordUrl){
+        taskId = data.taskId;
+        document.getElementById('taskid').innerText = taskId;
+        if(data.recordUrl){
+          const link = document.getElementById('recordlink');
+          link.href = data.recordUrl;
+          link.innerText = '记录链接';
+          document.getElementById('recordlinkbox').style.display = '';
+        }
+        html = `<div class='alert alert-success d-flex align-items-center' style='margin-top:12px;'>
+          <div>
+            <b>任务已开启！</b><br>
+            <span>任务ID：</span><span class='fw-bold text-primary' id='copyTaskId'>${data.taskId}</span>
+            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${data.taskId}")'>复制ID</button><br>
+            <span>记录链接：</span><a href='${data.recordUrl}' target='_blank' id='copyTaskUrl'>${data.recordUrl}</a>
+            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${data.recordUrl}")'>复制链接</button>
+          </div>
+        </div>`;
+        loadTaskList();
+      }else if(data['1'] && data['1']['12'] && data['1']['12']['14']){
+        const recordUrl = data['1']['12']['14']['3'];
+        const url = data['1']['1'];
+        html = `<div class='alert alert-success d-flex align-items-center' style='margin-top:12px;'>
+          <div>
+            <b>特殊格式任务创建成功！</b><br>
+            <span>链接：</span><a href='${url}' target='_blank'>${url}</a><br>
+            <span>记录地址：</span><a href='${recordUrl}' target='_blank' id='copyTaskUrl'>${recordUrl}</a>
+            <button class='btn btn-sm btn-outline-secondary ms-2' onclick='copyText("${recordUrl}")'>复制链接</button><br>
+            <span>完整返回：</span><pre style='font-size:13px;background:#f8fafc;border-radius:6px;padding:8px 12px;'>${JSON.stringify(data, null, 2)}</pre>
+          </div>
+        </div>`;
+        loadTaskList();
+      }else{
+        html = `<div class='alert alert-danger' style='margin-top:12px;'>开启失败：${data.error||'未知错误'}</div>`;
+      }
+      document.getElementById('taskCreateResult').innerHTML = html;
+    }
+    async function stopTask() {
+      if(!taskId) return alert('无任务ID');
+      const res = await fetchWithToken(`/api/stop?id=${taskId}`);
+      if (!res) return;
+      if (res.status === 401 || res.status === 403) {
+        alert('登录已失效，请重新登录');
+        window.location.href = '/login';
+        return;
+      }
+      const data = await res.json();
+      if(data.success){
+        alert('已暂停');
+        loadTaskList();
+      }else{
+        alert('暂停失败：' + (data.error||'未知错误'));
+      }
+    }
+    async function getIpList() {
+      if(!taskId) return alert('无任务ID');
+      const res = await fetchWithToken(`/api/getip/${taskId}`);
+      if (!res) return;
+      if (res.status === 401 || res.status === 403) {
+        alert('登录已失效，请重新登录');
+        window.location.href = '/login';
+        return;
+      }
+      const data = await res.json();
+      if(data.ips){
+        let html = renderIpTable(data.ips);
+        document.getElementById('iplist').innerHTML = html;
+      }else{
+        document.getElementById('iplist').innerText = '获取失败：' + (data.error||'未知错误');
+      }
+    }
+    function renderIpTable(ips) {
+        let html = `<table class="table table-bordered"><thead><tr><th>IP</th><th>归属地</th><th>时间</th></tr></thead><tbody>`;
+        (ips || []).forEach(ipObj => {
+            let location = '-';
+            let org = '';
+            if (Array.isArray(ipObj.apis) && ipObj.apis.length > 0) {
+                const api = ipObj.apis[0];
+                location = [api.country, api.region, api.city].filter(Boolean).join(' ');
+                org = api.isp || api.org || '';
+                if (org) location += ' ' + org;
+                if (!location.trim()) location = '-';
+            }
+            html += `<tr><td>${ipObj.ip}</td><td>${location}</td><td>${ipObj.created_at || '-'}</td></tr>`;
+        });
+        html += '</tbody></table>';
+        return html;
+    }
+    function loadSettings() {
+      fetch('/api/webui/settings', { credentials: 'include' })
+        .then(r=>{
+          if(r.status===200) return r.json();
+          throw new Error('无法获取设置，状态码：'+r.status);
+        })
+        .then(cfg=>{
+          document.getElementById('imgurl').value = cfg.IMAGE_URL||'';
+          document.getElementById('imgdir').value = cfg.IMAGE_DIR||'';
+          document.getElementById('localfirst').checked = !!cfg.LOCAL_IMAGE_FIRST;
+          document.getElementById('ipapi').value = cfg.IPINFO_API||'';
+          document.getElementById('token2').value = '';
+          document.getElementById('stat-db').innerText = cfg.DB_TYPE||'-';
+        })
+        .catch(e=>{
+          alert('加载设置失败：'+e.message);
+        });
+    }
+    function saveSettings() {
+      const body = {
+        IMAGE_URL: document.getElementById('imgurl').value,
+        IMAGE_DIR: document.getElementById('imgdir').value,
+        LOCAL_IMAGE_FIRST: document.getElementById('localfirst').checked,
+        IPINFO_API: document.getElementById('ipapi').value,
+        ADMIN_TOKEN: document.getElementById('token2').value
+      };
+      fetch('/api/webui/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        credentials: 'include'
+      }).then(r => r.json()).then(data => {
+        if(data.success){
+          alert('设置已保存');
+          loadSettings();
+        }else{
+          alert('保存失败：'+(data.error||'未知错误'));
+        }
+      });
+    }
+    function logout() {
+      fetch('/logout', { method: 'POST', credentials: 'include' }).then(()=>window.location.href='/login');
+    }
+    async function loadLog() {
+      document.getElementById('logLoadingTip').style.display = '';
+      try {
+        const r = await fetch('/api/webui/logs', { credentials: 'include' });
+        const data = await r.json();
+        document.getElementById('log').innerText = data.logs||'';
+      } finally {
+        document.getElementById('logLoadingTip').style.display = 'none';
+      }
+    }
+    function clearLog() {
+      if(!confirm('确定要清空日志吗？')) return;
+      fetch('/api/webui/logs/clear', { method: 'POST', credentials: 'include' })
+        .then(r=>r.json()).then(data=>{
+        if(data.success){
+          alert('日志已清空');
+          logStart = 0;
+          loadLog();
+        }else{
+          alert('清空失败：'+(data.error||'未知错误'));
+        }
+      });
+    }
+    function prevLogPage() {
+      logStart = Math.max(0, logStart - logLimit);
+      loadLog();
+    }
+    function nextLogPage() {
+      logStart += logLimit;
+      loadLog();
+    }
+    function showTaskIp(tid) {
+      fetchWithToken(`/api/getip/${tid}`)
+        .then(r => {
+          if (r.status === 401 || r.status === 403) {
+            alert('登录已失效，请重新登录');
+            window.location.href = '/login';
+            return;
+          }
+          return r.json();
+        })
+        .then(data => {
+          if (!data) return;
+          const box = document.getElementById('taskipbox');
+          if(data.ips && data.ips.length) {
+            let html = `<div><b>任务 <span style='color:#2563eb'>${tid}</span> IP记录：</b><br>`;
+            html += renderIpTable(data.ips);
+            html += '</div>';
+            box.innerHTML = html;
+            box.style.display = '';
+          } else {
+            box.innerHTML = '<div style="color:#f87171">无记录或获取失败</div>';
+            box.style.display = '';
+          }
+        });
+    }
+    function copyTaskLink(tid) {
+      const url = location.protocol + '//' + location.host + '/api/page/' + tid;
+      navigator.clipboard.writeText(url).then(()=>{
+        alert('链接已复制');
+      });
+    }
+    function showToast(msg, type) {
+      let toast = document.createElement('div');
+      toast.className = 'toast' + (type==='error' ? ' toast-error' : '');
+      toast.innerText = msg;
+      document.body.appendChild(toast);
+      setTimeout(()=>{ toast.style.opacity = 0; }, 1800);
+      setTimeout(()=>{ toast.remove(); }, 2200);
+    }
+    function renderKeyCard(k) {
+      const div = document.createElement('div');
+      div.className = 'key-card';
+      div.innerHTML = `
+        <div class='key-info'>${k.api_key}</div>
+        <div class='key-balance'>
+          <input type='number' value='${k.balance}' id='bal_${k.api_key}' />
+        </div>
+        <div class='key-date'>${new Date(k.created_at).toLocaleString()}</div>
+        <div class='key-actions'><button onclick='deleteKey("${k.api_key}")'>删除</button></div>
+      `;
+      // 余额输入框事件
+      const input = div.querySelector('input');
+      input.addEventListener('keydown', function(e){
+        if(e.key === 'Enter') saveKeyBalance(k.api_key, input.value);
+      });
+      input.addEventListener('blur', function(){
+        saveKeyBalance(k.api_key, input.value);
+      });
+      return div;
+    }
+    async function loadKeyList() {
+      document.getElementById('keyLoadingTip').style.display = '';
+      try {
+        const r = await fetch('/api/keys/list', { credentials: 'include' });
+        const data = await r.json();
+        const list = document.getElementById('keycardlist');
+        list.innerHTML = '';
+        if(data.keys && data.keys.length) {
+          data.keys.forEach(k=>{
+            list.appendChild(renderKeyCard(k));
+          });
+        }
+      } finally {
+        document.getElementById('keyLoadingTip').style.display = 'none';
+      }
+    }
+    function saveKeyBalance(api_key, balance) {
+      fetch('/api/keys/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key, balance }),
+        credentials: 'include'
+      }).then(r => r.json()).then(data => {
+        if(data.success) showToast('保存成功', 'success');
+        else showToast('保存失败', 'error');
+        loadKeyList();
+      }).catch(()=>showToast('保存失败', 'error'));
+    }
+    function deleteKey(api_key) {
+      if(!confirm('确定要删除此Key？')) return;
+      fetch('/api/keys/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key }),
+        credentials: 'include'
+      }).then(r => r.json()).then(data => {
+        if(data.success){
+          loadKeyList();
+        }else{
+          alert('删除失败');
+        }
+      });
+    }
+    function addKey() {
+      const api_key = document.getElementById('newkey').value || Math.random().toString(36).slice(2, 12);
+      const balance = parseInt(document.getElementById('newbalance').value) || 0;
+      fetch('/api/keys/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_key, balance }),
+        credentials: 'include'
+      }).then(r => r.json()).then(data => {
+        if(data.success){
+          alert('Key已添加');
+          loadKeyList();
+        }else{
+          alert('添加失败');
+        }
+      });
+    }
+    async function batchStopTask() {
+      const checked = Array.from(document.querySelectorAll('.task-checkbox:checked'));
+      if(checked.length === 0) return alert('请先选择要暂停的任务');
+      if(!confirm('确定要暂停选中的'+checked.length+'个任务吗？')) return;
+      let success = 0, fail = 0;
+      await Promise.all(checked.map(async cb => {
+        const tid = cb.getAttribute('data-id');
+        try {
+          const res = await fetchWithToken(`/api/stop?id=${tid}`);
+          const data = await res.json();
+          if(data.success) success++;
+          else fail++;
+        } catch(e) { fail++; }
+      }));
+      alert(`批量暂停完成，成功：${success}，失败：${fail}`);
+      loadTaskList();
+    }
+    // 检查是否管理员登录
+    function isAdmin() {
+      return document.cookie.includes('webui_token=');
+    }
+    function showAdminPanels() {
+      if(isAdmin()) {
+        document.getElementById('rate-limit-config-panel').style.display = '';
+        document.getElementById('ban-ip-panel').style.display = '';
+        loadRateLimitConfig();
+        loadBanIpList();
+      }
+    }
+    // ====== 限速参数设置 ======
+    function loadRateLimitConfig() {
+      fetch('/api/webui/rate-limit-config', { credentials: 'include' }).then(r=>r.json()).then(data=>{
+        for(const k in data.config) {
+          const input = document.querySelector(`[name=${k}]`);
+          if(input) input.value = data.config[k];
+        }
+      });
+    }
+    const rateLimitForm = document.getElementById('rateLimitForm');
+    if (rateLimitForm) {
+      rateLimitForm.onsubmit = function(e){
+        e.preventDefault();
+        const body = {};
+        new FormData(this).forEach((v,k)=>body[k]=Number(v));
+        fetch('/api/webui/rate-limit-config', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(body),
+          credentials: 'include'
+        })
+          .then(r=>r.json())
+          .then(data=>{
+            // 根据后端返回的success和msg字段，友好提示
+            const msgEl = document.getElementById('rateLimitSaveMsg');
+            msgEl.textContent = data.msg || (data.success ? '保存成功' : '保存失败');
+            msgEl.style.color = data.success ? 'green' : 'red';
+            setTimeout(()=>{msgEl.textContent='';}, 2000);
+            loadRateLimitConfig(); // 立即刷新表单，确保显示最新
+          });
+      };
+    }
+    // ====== 封禁IP管理 ======
+    function loadBanIpList(){
+      fetch('/api/webui/ban-ip-list', { credentials: 'include' }).then(r=>r.json()).then(data=>{
+        const ul = document.getElementById('banIpUl');
+        ul.innerHTML = '';
+        if(!data.list.length) ul.innerHTML = '<li>当前无被封禁IP</li>';
+        data.list.forEach(item=>{
+          const li = document.createElement('li');
+          li.textContent = `${item.ip} 封禁至 ${new Date(item.banUntil).toLocaleString()} `;
+          const btn = document.createElement('button');
+          btn.textContent = '解封';
+          btn.onclick = ()=>{
+            fetch('/api/webui/unban-ip', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ip: item.ip }),
+              credentials: 'include'
+            })
+              .then(r => r.json()).then(resp => {
+                document.getElementById('banIpMsg').textContent = resp.msg || '操作成功';
+                loadBanIpList();
+              });
+          };
+          li.appendChild(btn);
+          ul.appendChild(li);
+        });
+      });
+    }
+    // 图片预览大图弹窗
+    function previewImg(url){
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.maxWidth = '90vw';
+      img.style.maxHeight = '80vh';
+      img.style.display = 'block';
+      img.style.margin = '40px auto';
+      const mask = document.createElement('div');
+      mask.style.position = 'fixed';
+      mask.style.left = 0;
+      mask.style.top = 0;
+      mask.style.width = '100vw';
+      mask.style.height = '100vh';
+      mask.style.background = 'rgba(0,0,0,0.7)';
+      mask.style.zIndex = 9999;
+      mask.appendChild(img);
+      mask.onclick = ()=>document.body.removeChild(mask);
+      document.body.appendChild(mask);
+    }
+    // Tab切换逻辑
+    function showTab(tabId) {
+      document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      document.querySelectorAll('.nav-link').forEach(l=>l.classList.remove('active'));
+      document.getElementById(tabId+'-btn').classList.add('active');
+    }
+    // 一键复制
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(()=>{
+        showToast('已复制', 'success');
+      });
+    }
+    // 日志区块每10秒自动刷新，自动刷新时按钮禁用并有提示
+    let logAutoRefreshTimer = null;
+    function startLogAutoRefresh() {
+      if (logAutoRefreshTimer) clearInterval(logAutoRefreshTimer);
+      document.getElementById('logAutoRefreshTip').style.display = '';
+      document.getElementById('refreshLogBtn').disabled = true;
+      logAutoRefreshTimer = setInterval(loadLog, 10000);
+    }
+    function stopLogAutoRefresh() {
+      if (logAutoRefreshTimer) clearInterval(logAutoRefreshTimer);
+      document.getElementById('logAutoRefreshTip').style.display = 'none';
+      document.getElementById('refreshLogBtn').disabled = false;
+    }
+    // Key区块每30秒自动刷新
+    let keyAutoRefreshTimer = null;
+    function startKeyAutoRefresh() {
+      if (keyAutoRefreshTimer) clearInterval(keyAutoRefreshTimer);
+      document.getElementById('keyAutoRefreshTip').style.display = '';
+      document.getElementById('refreshKeyBtn').disabled = true;
+      keyAutoRefreshTimer = setInterval(loadKeyList, 30000);
+    }
+    function stopKeyAutoRefresh() {
+      if (keyAutoRefreshTimer) clearInterval(keyAutoRefreshTimer);
+      document.getElementById('keyAutoRefreshTip').style.display = 'none';
+      document.getElementById('refreshKeyBtn').disabled = false;
+    }
+    window.addEventListener('DOMContentLoaded', ()=>{
+      // 页面加载时所有区块并行请求，并显示加载提示
+      document.getElementById('logLoadingTip').style.display = '';
+      document.getElementById('keyLoadingTip').style.display = '';
+      Promise.all([
+        (async()=>{loadTaskList();})(),
+        (async()=>{loadSettings();})(),
+        (async()=>{loadLog();})(),
+        (async()=>{loadKeyList();})()
+      ]);
+      // 页面初始化时尝试显示记录链接
+      const tid = document.getElementById('taskid').innerText;
+      if(tid && tid !== '(无)'){
+        const link = document.getElementById('recordlink');
+        link.href = location.protocol + '//' + location.host + '/api/page/' + tid;
+        link.innerText = '记录链接';
+        document.getElementById('recordlinkbox').style.display = '';
+      }
+      showAdminPanels();
+      // 启动日志和Key自动刷新
+      startLogAutoRefresh();
+      startKeyAutoRefresh();
+    });
+  </script>
+</body>
+</html> 

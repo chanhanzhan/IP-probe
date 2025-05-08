@@ -2,7 +2,6 @@
   "name": "iplist",
   "version": "1.0.0",
   "main": "main.ts",
-  "type": "module",
   "scripts": {
     "start": "ts-node main.ts"
   },

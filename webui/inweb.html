@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP追踪酱 - 萌系IP追踪服务</title>
+    <link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'LXGW WenKai', sans-serif;
+            color: #5d4037;
+            line-height: 1.6;
+            background-color: rgba(255, 235, 238, 0.7);
+            position: relative;
+            min-height: 100vh;
+            overflow-x: hidden;
+            padding-bottom: 80px; /* Reduced padding to accommodate smaller footer */
+            scrollbar-gutter: stable both-edges;
+            overflow-y: scroll;
+        }
+        
+        /* 背景图片 */
+        .bg-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+        
+        .bg-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.4);
+            z-index: 1;
+        }
+        
+        .bg-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: blur(3px);
+        }
+        
+        /* 导航栏样式 */
+        .navbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 5%;
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo h1 {
+            font-size: 2rem;
+            color: #f48fb1;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        
+        .logo h1::after {
+            content: "♡";
+            position: absolute;
+            top: 0;
+            right: -20px;
+            font-size: 1.5rem;
+            color: #f48fb1;
+            animation: heartbeat 1.5s infinite;
+        }
+        
+        .nav-links a {
+            margin-left: 2rem;
+            text-decoration: none;
+            color: #5d4037;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .nav-links a:hover {
+            color: #f48fb1;
+            transform: scale(1.05);
+        }
+        
+        /* 主内容区样式 */
+        .container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            position: relative;
+            z-index: 2;
+            min-height: 300px;
+        }
+        
+        .welcome {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .welcome h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: #5d4037;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .welcome h2::before,
+        .welcome h2::after {
+            content: "•";
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            color: #f48fb1;
+        }
+        
+        .welcome h2::before {
+            left: -2rem;
+        }
+        
+        .welcome h2::after {
+            right: -2rem;
+        }
+        
+        .welcome p {
+            font-size: 1.2rem;
+            color: #7b7b7b;
+            margin-bottom: 2.5rem;
+        }
+        
+        /* 按钮样式 */
+        .btn {
+            padding: 0.8rem 2.5rem;
+            border-radius: 50px;
+            border: none;
+            font-size: 1.3rem;
+            font-family: 'LXGW WenKai', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+            text-decoration: none;
+            margin: 0 auto;
+        }
+        
+        .btn-primary {
+            background-color: #f48fb1;
+            color: white;
+            box-shadow: 0 5px 15px rgba(244, 143, 177, 0.4);
+        }
+        
+        .btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 页脚样式 - 更改为更小更美观 */
+        .footer {
+            text-align: center;
+            padding: 1rem 0;
+            color: #7b7b7b;
+            font-size: 0.9rem;
+            background-color: rgba(255, 245, 247, 0.5); /* 更透明 */
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 80px; /* 减小高度 */
+            z-index: 10;
+            backdrop-filter: blur(5px); /* 增加模糊效果使其更融入背景 */
+        }
+        
+        .footer .kawaii {
+            margin-top: 0.5rem;
+            font-size: 1rem;
+            letter-spacing: 0.3rem;
+        }
+        
+        /* 动画定义 */
+        @keyframes heartbeat {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.2);
+            }
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 1rem;
+            }
+            
+            .nav-links a {
+                margin-left: 1rem;
+                font-size: 1rem;
+            }
+            
+            .container {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            
+            .welcome h2 {
+                font-size: 1.8rem;
+            }
+            
+            .welcome h2::before,
+            .welcome h2::after {
+                display: none;
+            }
+            
+            .welcome p {
+                font-size: 1rem;
+            }
+            
+            .btn {
+                padding: 0.7rem 2rem;
+                font-size: 1.1rem;
+            }
+            
+            .footer {
+                height: 70px;
+                padding: 0.8rem 0;
+            }
+            
+            .footer .kawaii {
+                font-size: 0.9rem;
+                letter-spacing: 0.2rem;
+            }
+            
+            body {
+                padding-bottom: 70px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 背景图片 -->
+    <div class="bg-container">
+        <img id="randomBg" alt="背景图片">
+    </div>
+    
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <h1>IP追踪酱</h1>
+        </div>
+        <div class="nav-links">
+            <a href="/help">帮助</a>
+            <a href="/login">管理入口</a>
+        </div>
+    </nav>
+    
+    <!-- 主内容区 -->
+    <div class="container">
+        <!-- 欢迎区域 -->
+        <div class="welcome">
+            <h2>欢迎来到IP追踪服务</h2>
+            <p>简单、高效的IP追踪解决方案，萌萌哒~</p>
+            <a href="/user/login" class="btn btn-primary">
+                用户登录
+            </a>
+        </div>
+    </div>
+    
+    <!-- 页脚 -->
+    <footer class="footer">
+        <p>© 2025 IP追踪酱 | 用可爱的方式追踪IP</p>
+        <div class="kawaii">
+            ʕ •ᴥ•ʔ (｡◕‿◕｡) ♡〜٩(^▿^)۶〜♡
+        </div>
+    </footer>
+    
+    <script>
+        // 设置随机背景图片
+        document.addEventListener('DOMContentLoaded', function() {
+            const timestamp = new Date().getTime();
+            document.getElementById('randomBg').src = `https://t.alcy.cc/ycy?${timestamp}`;
+        });
+        
+        // 标题变化效果
+        var OriginTitile = document.title;
+        var titleTime;
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                //离开当前页面时标签显示内容
+                document.title = 'w(ﾟДﾟ)w 不要走！再看看嘛！';
+                clearTimeout(titleTime);
+            }
+            else {
+                //返回当前页面时标签显示内容
+                document.title = '♪(∇*)欢迎回来！' + OriginTitile;
+                //两秒后变回正常标题
+                titleTime = setTimeout(function () {
+                    document.title = OriginTitile;
+                }, 2000);
+            }
+        });
+    </script>
+    
+    <!-- 樱花特效 -->
+    <script src="https://jsd.cdn.zzko.cn/gh/lizina66/api/img/jpuer.js"></script>
+</body>
+</html>

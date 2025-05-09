@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "启动 main.ts (ts-node)",
+      "program": "${workspaceFolder}/main.ts",
+      "runtimeArgs": [
+        "-r",
+        "ts-node/register"
+      ],
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      },
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "启动编译后 main.js",
+      "program": "${workspaceFolder}/dist/main.js",
+      "cwd": "${workspaceFolder}",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+} 

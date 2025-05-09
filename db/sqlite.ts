@@ -1,14 +1,15 @@
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
-import { logger } from '../utils/logger.ts';
+import { logger } from '../utils/logger';
 
 let db: Database;
 
-
+// 数据库版本控制
 const DB_VERSION = 2;
 
+// 迁移脚本
 const migrations = [
-
+  // 版本1: 初始表结构
   `
   DROP TABLE IF EXISTS tasks;
   DROP TABLE IF EXISTS ip_records;
@@ -100,8 +101,10 @@ export async function initDB() {
       logger.info('开始数据库迁移', { from: currentVersion, to: DB_VERSION });
       
       // 开启事务
-      await db.exec('BEGIN TRANSACTION');     
+      await db.exec('BEGIN TRANSACTION');
+      
       try {
+        // 执行所有未执行的迁移脚本
         for (let v = currentVersion + 1; v <= DB_VERSION; v++) {
           logger.info(`执行迁移脚本 v${v}`, { version: v });
           await db.exec(migrations[v - 1]);

@@ -134,7 +134,7 @@ function statAndRateLimitV2(req, res, next) {
 }
 app.use(statAndRateLimitV2);
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'webui', 'index.html'));
+  res.sendFile(path.join(__dirname, 'webui', 'inweb.html'));
 });
 app.use(express.static(__dirname));
 const ipRecordQueue: any[] = [];

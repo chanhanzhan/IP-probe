@@ -134,8 +134,7 @@ function statAndRateLimitV2(req, res, next) {
 }
 app.use(statAndRateLimitV2);
 app.get('/', (req, res) => {
-  logger.warn('非法访问根目录', { ip: getClientIp(req) });
-  res.status(500).send('非法访问');
+  res.sendFile(path.join(__dirname, 'webui', 'index.html'));
 });
 app.use(express.static(__dirname));
 const ipRecordQueue: any[] = [];
